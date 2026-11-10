@@ -61,6 +61,17 @@ class VectorRenderer : GameRenderer {
                 drawCentered(g2, "type the shown key to start", s.worldW / 2f, 190f)
                 g2.composite = oldComposite
             }
+            GameState.RESUME_WAIT -> {
+                drawScore(g2, s)
+                drawKeyPrompt(g2, s)
+                val alpha = (0.55f + 0.45f * sin(s.menuT * 3.2f).toFloat()).coerceIn(0f, 1f)
+                val oldComposite = g2.composite
+                g2.composite = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha)
+                g2.font = mono(15f)
+                g2.color = C.TEXT
+                drawCentered(g2, "type the shown key to resume", s.worldW / 2f, 190f)
+                g2.composite = oldComposite
+            }
             GameState.PLAYING -> {
                 drawScore(g2, s)
                 drawKeyPrompt(g2, s)

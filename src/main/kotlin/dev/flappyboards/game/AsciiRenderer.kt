@@ -82,10 +82,13 @@ class AsciiRenderer : GameRenderer {
                 drawHud(s)
                 when (s.state) {
                     GameState.MENU -> drawMenu(s)
-                    GameState.PLAYING, GameState.READY -> {
+                    GameState.PLAYING, GameState.READY, GameState.RESUME_WAIT -> {
                         drawKeyBadge(s)
                         if (s.state == GameState.READY && blink(s.menuT)) {
                             putCentered(9, "type the shown key to start", TEXT)
+                        }
+                        if (s.state == GameState.RESUME_WAIT && blink(s.menuT)) {
+                            putCentered(9, "type the shown key to resume", TEXT)
                         }
                     }
                     GameState.GAME_OVER -> drawGameOver(s)

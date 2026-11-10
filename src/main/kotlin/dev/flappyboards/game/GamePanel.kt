@@ -188,7 +188,7 @@ class GamePanel(private val project: Project? = null) : JPanel() {
                         }
                         KeyEvent.VK_ESCAPE -> {
                             when (state) {
-                                GameState.LEADERBOARD, GameState.READY -> state = GameState.MENU
+                                GameState.LEADERBOARD, GameState.READY, GameState.RESUME_WAIT -> state = GameState.MENU
                                 GameState.PAUSED -> state = GameState.MENU // abandon the run
                                 else -> Unit
                             }
@@ -245,8 +245,10 @@ class GamePanel(private val project: Project? = null) : JPanel() {
 
     private fun pauseForStealth() {
         when (state) {
-            GameState.PLAYING, GameState.READY -> {
-                pausedFrom = state
+            GameState.PLAYING, GameState.READY, GameState.RESUME_WAIT -> {
+                // RESUME_WAIT keeps pointing at PLAYING so another focus cycle
+                // comes back to the same "press the key to continue" gate.
+                pausedFrom = if (state == GameState.RESUME_WAIT) GameState.PLAYING else state
                 state = GameState.PAUSED
             }
             else -> Unit
@@ -255,7 +257,12 @@ class GamePanel(private val project: Project? = null) : JPanel() {
 
     private fun resumeFromPause() {
         if (state == GameState.PAUSED) {
-            state = pausedFrom ?: GameState.PLAYING
+            // Don't drop the player straight into falling: freeze the frame
+            // and let them resume with the shown key.
+            state = when (pausedFrom) {
+                GameState.READY -> GameState.READY
+                else -> GameState.RESUME_WAIT
+            }
             pausedFrom = null
         }
     }
@@ -404,6 +411,7 @@ class GamePanel(private val project: Project? = null) : JPanel() {
             GameState.MENU -> startGame()
             GameState.PLAYING -> Unit // in-game flaps happen only via the shown key
             GameState.READY -> Unit   // waiting for the shown key
+            GameState.RESUME_WAIT -> Unit // resume requires typing the shown key
             GameState.PAUSED -> resumeFromPause()
             GameState.GAME_OVER -> if (gameOverT > 0.35f) startGame()
             GameState.LEADERBOARD -> state = GameState.MENU
@@ -422,18 +430,18 @@ class GamePanel(private val project: Project? = null) : JPanel() {
      * a small downward penalty (so brute-forcing every key is a bad strategy).
      */
     private fun onCharTyped(c: Char) {
-        if (state != GameState.PLAYING && state != GameState.READY) return
+        if (state != GameState.PLAYING && state != GameState.READY && state != GameState.RESUME_WAIT) return
         if (c.lowercaseChar() == requiredChar.lowercaseChar()) {
-            keysOk++
+            if (state != GameState.RESUME_WAIT) keysOk++ // the resume press isn't scored
             flap()
             keyFlashOk = true
             keyFlashT = 1f
-            if (state == GameState.READY) {
-                // First correct press starts the run.
+            if (state == GameState.READY || state == GameState.RESUME_WAIT) {
+                // Correct press (re)starts the action.
                 state = GameState.PLAYING
             }
         } else {
-            keysWrong++
+            if (state != GameState.RESUME_WAIT) keysWrong++
             keyFlashOk = false
             keyFlashT = 1f
             GameSounds.buzz()
