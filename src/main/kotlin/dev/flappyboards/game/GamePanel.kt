@@ -41,7 +41,7 @@ class GamePanel(private val project: Project? = null) : JPanel() {
         const val GROUND_H = 44f
 
         // Physics (units per second) — deliberately gentle: the bird floats.
-        const val GRAVITY = 1100f
+        const val GRAVITY = 800f
         const val FLAP_VY = -400f
         const val BASE_SPEED = 132f
         const val MAX_SPEED = 220f
@@ -70,8 +70,8 @@ class GamePanel(private val project: Project? = null) : JPanel() {
         const val DIGITS_UNTIL = 20    // + digits below this score, then all symbols
 
         // Light anti-spam: each wrong keypress pushes the bird down a bit.
-        const val WRONG_VY_PENALTY = 90f
-        const val WRONG_VY_CAP = 560f
+        const val WRONG_VY_PENALTY = 60f
+        const val WRONG_VY_CAP = 420f
     }
 
     private class Pipe(var x: Float, val gapY: Float, val gapH: Float, var passed: Boolean = false)
@@ -246,7 +246,7 @@ class GamePanel(private val project: Project? = null) : JPanel() {
     // --------------------------------------------------------------- physics
 
     private fun physics(dt: Float, dying: Boolean) {
-        birdVy = (birdVy + GRAVITY * dt).coerceAtMost(if (dying) 900f else 700f)
+        birdVy = (birdVy + GRAVITY * dt).coerceAtMost(if (dying) 620f else 480f)
         birdY += birdVy * dt
 
         if (dying) {
