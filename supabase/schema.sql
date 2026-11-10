@@ -1,4 +1,4 @@
--- FlappyBoards leaderboard schema v2 for Supabase.
+-- FlappyBoards leaderboard schema v2.1 for Supabase.
 -- Run in the Supabase dashboard: SQL Editor → New query → paste → Run.
 -- Idempotent: safe to re-run, recreates everything.
 
@@ -34,10 +34,17 @@ create index if not exists scores_nick_created_idx on public.scores (nickname, c
 alter table public.players enable row level security;
 alter table public.scores  enable row level security;
 
--- Everyone may read; writes happen only through the security-definer RPCs.
--- No update/delete policies = anon can never modify or wipe the tables.
-create policy "players are public" on public.players for select using (true);
-create policy "scores are public"  on public.scores  for select using (true);
+-- Base tables: NO direct anon/authenticated access. The device_id is a
+-- pseudo-identity — if it were readable, anyone could submit scores
+-- impersonating another device/nickname. All reads go through the views
+-- below (they execute with the table owner's rights) and the RPCs.
+-- Supabase grants ALL on new tables to anon by default, so revoke explicitly.
+revoke select on public.players from anon, authenticated;
+revoke select on public.scores  from anon, authenticated;
+
+-- Public read surface: the two leaderboard views and the RPCs only.
+grant select on public.leaderboard      to anon, authenticated;
+grant select on public.leaderboard_week to anon, authenticated;
 
 -- All-time best run per nickname (score + that run's accuracy + date).
 create or replace view public.leaderboard as

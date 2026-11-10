@@ -4,3 +4,6 @@ build/
 *.iml
 .intellijPlatform/
 run/
+.kotlin/
+.DS_Store
+*.hprof
