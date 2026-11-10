@@ -42,7 +42,7 @@ class GamePanel(private val project: Project? = null) : JPanel() {
 
         // Physics (units per second) — deliberately gentle: the bird floats.
         const val GRAVITY = 800f
-        const val FLAP_VY = -400f
+        const val FLAP_VY = -330f
         const val BASE_SPEED = 132f
         const val MAX_SPEED = 220f
 

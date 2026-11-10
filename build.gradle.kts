@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "dev.flappyboards"
-version = "0.2.5"
+version = "0.2.6"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
