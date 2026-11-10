@@ -52,13 +52,13 @@ class GamePanel(private val project: Project? = null) : JPanel() {
 
         // Pipes.
         const val PIPE_W = 62f
-        const val SPAWN_SPACING = 225f
+        const val SPAWN_SPACING = 300f
 
         // Collision forgiveness (classic game-feel trick): hitboxes are a bit
         // smaller than the visuals, so grazes don't kill. Bird radius is
         // 13 units on screen, pipes look 62 wide — hitboxes below.
-        const val BIRD_HITBOX_R = 10f
-        const val PIPE_HITBOX_INSET = 5f
+        const val BIRD_HITBOX_R = 9f
+        const val PIPE_HITBOX_INSET = 6f
 
         const val TOP_SCORE_LIMIT = 20
 
