@@ -131,18 +131,26 @@ class GamePanel(private val project: Project? = null) : JPanel() {
         addKeyListener(
             object : KeyAdapter() {
                 override fun keyPressed(e: KeyEvent) {
+                    // Service keys act only on service screens (menu / game over /
+                    // leaderboard). They must never fire during READY/PLAYING/PAUSED:
+                    // 'l' and 'o' are typing keys there, and a paused game (boss
+                    // screen) should stay a build log no matter what is pressed.
                     when (e.keyCode) {
                         KeyEvent.VK_SPACE, KeyEvent.VK_UP -> onPrimary()
                         KeyEvent.VK_L -> {
-                            if (state == GameState.LEADERBOARD) state = GameState.MENU
-                            else if (state == GameState.MENU || state == GameState.GAME_OVER || state == GameState.PAUSED || state == GameState.READY) openLeaderboard()
+                            when (state) {
+                                GameState.LEADERBOARD -> state = GameState.MENU
+                                GameState.MENU, GameState.GAME_OVER -> openLeaderboard()
+                                else -> Unit
+                            }
                         }
                         KeyEvent.VK_O -> {
-                            if (state == GameState.MENU || state == GameState.GAME_OVER || state == GameState.READY) openSettings()
+                            if (state == GameState.MENU || state == GameState.GAME_OVER) openSettings()
                         }
                         KeyEvent.VK_ESCAPE -> {
                             when (state) {
-                                GameState.LEADERBOARD, GameState.PAUSED, GameState.READY -> state = GameState.MENU
+                                GameState.LEADERBOARD, GameState.READY -> state = GameState.MENU
+                                GameState.PAUSED -> state = GameState.MENU // abandon the run
                                 else -> Unit
                             }
                         }
