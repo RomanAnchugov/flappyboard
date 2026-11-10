@@ -42,10 +42,6 @@ alter table public.scores  enable row level security;
 revoke select on public.players from anon, authenticated;
 revoke select on public.scores  from anon, authenticated;
 
--- Public read surface: the two leaderboard views and the RPCs only.
-grant select on public.leaderboard      to anon, authenticated;
-grant select on public.leaderboard_week to anon, authenticated;
-
 -- All-time best run per nickname (score + that run's accuracy + date).
 create or replace view public.leaderboard as
 select nickname, best_score, accuracy, last_played
@@ -74,6 +70,10 @@ from (
     order by nickname, score desc, created_at desc
 ) best
 order by best_score desc;
+
+-- Public read surface: the two leaderboard views and the RPCs only.
+grant select on public.leaderboard      to anon, authenticated;
+grant select on public.leaderboard_week to anon, authenticated;
 
 -- The only write path. Validates input, rate-limits per device and
 -- enforces nickname ownership. It is "anti-idiot", not "anti-cheater":
