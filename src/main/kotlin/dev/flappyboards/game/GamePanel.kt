@@ -54,6 +54,12 @@ class GamePanel(private val project: Project? = null) : JPanel() {
         const val PIPE_W = 62f
         const val SPAWN_SPACING = 225f
 
+        // Collision forgiveness (classic game-feel trick): hitboxes are a bit
+        // smaller than the visuals, so grazes don't kill. Bird radius is
+        // 13 units on screen, pipes look 62 wide — hitboxes below.
+        const val BIRD_HITBOX_R = 10f
+        const val PIPE_HITBOX_INSET = 5f
+
         const val TOP_SCORE_LIMIT = 20
 
         // Typing mechanic: the key pool grows with the score.
@@ -281,7 +287,7 @@ class GamePanel(private val project: Project? = null) : JPanel() {
             return
         }
         for (p in pipes) {
-            if (circleHits(BIRD_X, birdY, BIRD_R - 1f, p)) {
+            if (circleHits(BIRD_X, birdY, BIRD_HITBOX_R, p)) {
                 die()
                 return
             }
@@ -299,11 +305,15 @@ class GamePanel(private val project: Project? = null) : JPanel() {
         pipes.add(Pipe(W + 16f, gapY, gapH))
     }
 
+    /** Pipe hitbox is inset from the visible pipe on every side. */
     private fun circleHits(bx: Float, by: Float, r: Float, p: Pipe): Boolean {
+        val inset = PIPE_HITBOX_INSET
+        val x = p.x + inset
+        val w = PIPE_W - inset * 2
         val topH = p.gapY - p.gapH / 2
         val botY = p.gapY + p.gapH / 2
-        return hitsRect(bx, by, r, p.x, 0f, PIPE_W, topH) ||
-            hitsRect(bx, by, r, p.x, botY, PIPE_W, H - botY)
+        return hitsRect(bx, by, r, x, -50f, w, topH + 50f - inset) ||
+            hitsRect(bx, by, r, x, botY + inset, w, H - botY - inset)
     }
 
     private fun hitsRect(bx: Float, by: Float, r: Float, x: Float, y: Float, w: Float, h: Float): Boolean {
