@@ -257,6 +257,7 @@ class GamePanel(private val project: Project? = null) : JPanel() {
                 p.passed = true
                 score++
                 scorePop = 1f
+                GameSounds.ding()
                 pickNextKey() // a new key appears after every passed pipe
             }
             if (p.x + PIPE_W < -12) iterator.remove()
@@ -321,6 +322,7 @@ class GamePanel(private val project: Project? = null) : JPanel() {
     private fun flap() {
         birdVy = FLAP_VY
         wingT = 1f
+        GameSounds.flap()
     }
 
     /**
@@ -343,6 +345,7 @@ class GamePanel(private val project: Project? = null) : JPanel() {
             keysWrong++
             keyFlashOk = false
             keyFlashT = 1f
+            GameSounds.buzz()
             if (state == GameState.PLAYING) {
                 // Light anti-spam: wrong keypresses push the bird down a bit.
                 birdVy = (birdVy + WRONG_VY_PENALTY).coerceAtMost(WRONG_VY_CAP)
@@ -393,6 +396,8 @@ class GamePanel(private val project: Project? = null) : JPanel() {
             PropertiesComponent.getInstance().setValue(BEST_KEY, best.toString())
         }
         pickNextKey() // pre-pick the next run's key so the game-over screen can show it
+        GameSounds.death()
+        if (newBest) GameSounds.best()
         submitScore()
     }
 

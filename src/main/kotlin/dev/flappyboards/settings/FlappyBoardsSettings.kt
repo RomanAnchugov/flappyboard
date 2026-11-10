@@ -14,6 +14,7 @@ class FlappyBoardsSettings : PersistentStateComponent<FlappyBoardsSettings.State
         var nickname: String = ""
         var publishScores: Boolean = true
         var renderMode: String = "terminal"   // "terminal" (ASCII) | "classic" (vector)
+        var soundsEnabled: Boolean = true
     }
 
     private var myState = State()

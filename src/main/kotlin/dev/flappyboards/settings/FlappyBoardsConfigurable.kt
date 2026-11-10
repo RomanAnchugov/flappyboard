@@ -21,6 +21,7 @@ class FlappyBoardsConfigurable : Configurable, Configurable.NoScroll {
 
     private val nicknameField = JTextField(24)
     private val publishBox = JCheckBox("Publish my scores to the global leaderboard")
+    private val soundsBox = JCheckBox("Play sound effects")
     private val terminalRadio = JRadioButton("Terminal — ASCII (stealth mode)")
     private val classicRadio = JRadioButton("Classic — flat vector graphics")
 
@@ -48,6 +49,7 @@ class FlappyBoardsConfigurable : Configurable, Configurable.NoScroll {
             })
             add(Box.createVerticalStrut(10))
             add(publishBox.apply { alignmentX = 0f })
+            add(soundsBox.apply { alignmentX = 0f })
             add(Box.createVerticalStrut(10))
             add(JLabel("Graphics:").apply { alignmentX = 0f })
             add(Box.createVerticalStrut(4))
@@ -78,17 +80,20 @@ class FlappyBoardsConfigurable : Configurable, Configurable.NoScroll {
     override fun isModified(): Boolean =
         nicknameField.text.trim() != state.nickname ||
             publishBox.isSelected != state.publishScores ||
+            soundsBox.isSelected != state.soundsEnabled ||
             selectedRenderMode != state.renderMode
 
     override fun apply() {
         state.nickname = nicknameField.text.trim().take(24)
         state.publishScores = publishBox.isSelected
+        state.soundsEnabled = soundsBox.isSelected
         state.renderMode = selectedRenderMode
     }
 
     override fun reset() {
         nicknameField.text = state.nickname
         publishBox.isSelected = state.publishScores
+        soundsBox.isSelected = state.soundsEnabled
         classicRadio.isSelected = state.renderMode == "classic"
         terminalRadio.isSelected = state.renderMode != "classic"
     }
