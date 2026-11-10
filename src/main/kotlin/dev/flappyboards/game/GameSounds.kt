@@ -35,7 +35,7 @@ object GameSounds {
 
     fun flap() = play("flap", 40) { sweep(70, 500f, 900f, 0.22f, decayK = 26f) }
     fun ding() = play("ding", 60) { chime() }
-    fun buzz() = play("buzz", 90) { buzz() }
+    fun buzz() = play("buzz", 90) { buzzTone() }
     fun death() = play("death", 120) { fall() }
     fun best() = play("best", 300) { arpeggio() }
 
@@ -117,7 +117,7 @@ object GameSounds {
     }
 
     /** Short low muffled buzz — wrong key. */
-    private fun buzz(): ByteArray {
+    private fun buzzTone(): ByteArray {
         val ms = 110
         val n = SR * ms / 1000
         val s = FloatArray(n)
