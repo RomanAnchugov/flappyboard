@@ -47,6 +47,12 @@ class AsciiRenderer : GameRenderer {
     private var cells = CharArray(0)
     private var colors = IntArray(0)
 
+    // big on-screen glyph for the key prompt (drawn over the buffer after flush)
+    private var bigGlyph: Char? = null
+    private var bigGlyphX = 0
+    private var bigGlyphY = 0
+    private var bigGlyphColor = TEXT
+
     private var font: Font = Font(Font.MONOSPACED, Font.BOLD, 15)
     private var charW = 1f
     private var lineH = 1f
@@ -76,7 +82,12 @@ class AsciiRenderer : GameRenderer {
                 drawHud(s)
                 when (s.state) {
                     GameState.MENU -> drawMenu(s)
-                    GameState.PLAYING -> drawKeyBadge(s)
+                    GameState.PLAYING, GameState.READY -> {
+                        drawKeyBadge(s)
+                        if (s.state == GameState.READY && blink(s.menuT)) {
+                            putCentered(9, "type the shown key to start", TEXT)
+                        }
+                    }
                     GameState.GAME_OVER -> drawGameOver(s)
                     GameState.LEADERBOARD -> drawLeaderboard(s)
                     GameState.PAUSED -> Unit
@@ -85,6 +96,7 @@ class AsciiRenderer : GameRenderer {
         }
 
         flush(g, pal)
+        drawBigGlyph(g, pal)
     }
 
     private fun setup(g: Graphics2D, s: GameSnapshot, pal: Pal, width: Int, height: Int) {
@@ -111,6 +123,7 @@ class AsciiRenderer : GameRenderer {
     private fun clear() {
         java.util.Arrays.fill(cells, ' ')
         java.util.Arrays.fill(colors, TEXT)
+        bigGlyph = null
     }
 
     // ------------------------------------------------------------ buffer ops
@@ -208,12 +221,17 @@ class AsciiRenderer : GameRenderer {
             }
         }
 
-        val ch = when {
-            s.state == GameState.GAME_OVER && s.birdRot > 1.4f -> '×'
-            s.wingT > 0.45f -> '^'
-            else -> '>'
+        // Bigger bird: 3-cell body + animated wing.
+        val bx = colOf(s.birdX)
+        val by = rowOf(s.birdY)
+        val dead = s.state == GameState.GAME_OVER && s.birdRot > 1.4f
+        put(bx - 1, by, '(', ACCENT)
+        put(bx, by, if (dead) '×' else 'o', ACCENT)
+        put(bx + 1, by, '>', ACCENT)
+        if (!dead) {
+            if (s.wingT > 0.45f) put(bx - 1, by - 1, '\\', ACCENT) // wing up
+            else put(bx - 1, by + 1, '/', ACCENT)                  // wing down
         }
-        put(colOf(s.birdX), rowOf(s.birdY), ch, ACCENT)
     }
 
     private fun drawHud(s: GameSnapshot) {
@@ -231,15 +249,22 @@ class AsciiRenderer : GameRenderer {
         }
     }
 
+    /** Large framed prompt with the key the player must type. */
     private fun drawKeyBadge(s: GameSnapshot) {
-        putCentered(3, "PRESS", DIM)
-        val flash = s.keyFlashT > 0.05f
-        val color = when {
-            flash && s.keyFlashOk -> OK
-            flash -> DANGER
+        val w = 7
+        val h = 6
+        val x = cols / 2 - w / 2
+        val y = 3
+        frame(x, y, w, h, DIM)
+        putCentered(y + 1, "PRESS", DIM)
+        bigGlyph = s.requiredChar
+        bigGlyphX = x + w / 2
+        bigGlyphY = y + 3
+        bigGlyphColor = when {
+            s.keyFlashT > 0.05f && s.keyFlashOk -> OK
+            s.keyFlashT > 0.05f -> DANGER
             else -> ACCENT
         }
-        putCentered(4, "[ ${s.requiredChar} ]", color)
     }
 
     // --------------------------------------------------------------- screens
@@ -257,7 +282,8 @@ class AsciiRenderer : GameRenderer {
         if (blink(s.menuT)) putCentered(by + 9, "CLICK or SPACE to start", TEXT)
         putCentered(by + 11, "then type the shown key to flap", DIM)
         putCentered(by + 13, "L leaderboard    O settings", DIM)
-        if (s.nicknameBlank) putCentered(by + 15, "set nickname in settings (O) to compete", DIM)
+        putCentered(by + 15, "first key: [ ${s.requiredChar} ]", ACCENT)
+        if (s.nicknameBlank) putCentered(by + 17, "set nickname in settings (O) to compete", DIM)
     }
 
     private fun drawGameOver(s: GameSnapshot) {
@@ -277,6 +303,8 @@ class AsciiRenderer : GameRenderer {
 
         putCentered(y + h + 2, "SPACE retry   L leaderboard   ESC menu", DIM)
         putCentered(y + h + 3, "O settings", DIM)
+        putCentered(y + h + 5, "next key: [ ${s.requiredChar} ]", ACCENT)
+        if (s.nicknameBlank) putCentered(y + h + 6, "set nickname in settings (O) to compete", DIM)
     }
 
     private fun drawLeaderboard(s: GameSnapshot) {
@@ -346,6 +374,19 @@ class AsciiRenderer : GameRenderer {
     }
 
     // ----------------------------------------------------------------- paint
+
+    /** Draws the required key as a large glyph (2x+ line height) at the badge position. */
+    private fun drawBigGlyph(g: Graphics2D, pal: Pal) {
+        val ch = bigGlyph ?: return
+        val f = font.deriveFont(lineH * 2.3f)
+        g.font = f
+        g.color = colorFor(pal, bigGlyphColor)
+        val fm = g.getFontMetrics(f)
+        val cx = bigGlyphX * charW + charW / 2f
+        val cy = bigGlyphY * lineH + lineH / 2f
+        val str = ch.toString()
+        g.drawString(str, cx - fm.stringWidth(str) / 2f, cy + (fm.ascent - fm.descent) / 2f)
+    }
 
     private fun flush(g: Graphics2D, pal: Pal) {
         g.font = font

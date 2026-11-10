@@ -3,7 +3,7 @@ package dev.flappyboards.game
 import dev.flappyboards.leaderboard.LeaderboardService
 import java.awt.Graphics2D
 
-enum class GameState { MENU, PLAYING, PAUSED, GAME_OVER, LEADERBOARD }
+enum class GameState { MENU, READY, PLAYING, PAUSED, GAME_OVER, LEADERBOARD }
 
 class PipeData(val x: Float, val gapY: Float, val gapH: Float)
 class CloudData(var x: Float, val y: Float, val scale: Float, val speedFactor: Float)

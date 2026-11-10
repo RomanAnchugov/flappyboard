@@ -22,6 +22,7 @@ import java.awt.event.MouseEvent
 import javax.swing.JPanel
 import javax.swing.Timer
 import kotlin.math.PI
+import kotlin.math.sin
 import kotlin.random.Random
 
 /**
@@ -39,11 +40,11 @@ class GamePanel(private val project: Project? = null) : JPanel() {
         const val H = 560f
         const val GROUND_H = 44f
 
-        // Physics (units per second).
-        const val GRAVITY = 1500f
-        const val FLAP_VY = -440f
-        const val BASE_SPEED = 150f
-        const val MAX_SPEED = 255f
+        // Physics (units per second) — deliberately gentle: the bird floats.
+        const val GRAVITY = 1100f
+        const val FLAP_VY = -400f
+        const val BASE_SPEED = 132f
+        const val MAX_SPEED = 220f
 
         // Bird.
         const val BIRD_X = 92f
@@ -125,6 +126,7 @@ class GamePanel(private val project: Project? = null) : JPanel() {
         background = UIUtil.getPanelBackground()
         cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
         best = PropertiesComponent.getInstance().getInt(BEST_KEY, 0)
+        pickNextKey() // the first key of the next run, shown on the menu
 
         addKeyListener(
             object : KeyAdapter() {
@@ -133,13 +135,15 @@ class GamePanel(private val project: Project? = null) : JPanel() {
                         KeyEvent.VK_SPACE, KeyEvent.VK_UP -> onPrimary()
                         KeyEvent.VK_L -> {
                             if (state == GameState.LEADERBOARD) state = GameState.MENU
-                            else if (state == GameState.MENU || state == GameState.GAME_OVER || state == GameState.PAUSED) openLeaderboard()
+                            else if (state == GameState.MENU || state == GameState.GAME_OVER || state == GameState.PAUSED || state == GameState.READY) openLeaderboard()
                         }
                         KeyEvent.VK_O -> {
-                            if (state == GameState.MENU || state == GameState.GAME_OVER) openSettings()
+                            if (state == GameState.MENU || state == GameState.GAME_OVER || state == GameState.READY) openSettings()
                         }
                         KeyEvent.VK_ESCAPE -> {
-                            if (state == GameState.LEADERBOARD || state == GameState.PAUSED) state = GameState.MENU
+                            when (state) {
+                                GameState.LEADERBOARD, GameState.PAUSED, GameState.READY -> state = GameState.MENU
+                            }
                         }
                     }
                 }
@@ -214,6 +218,12 @@ class GamePanel(private val project: Project? = null) : JPanel() {
                 gameOverT += dt
                 physics(dt, dying = true)
             }
+            GameState.READY -> {
+                // Bird hovers: no gravity, gentle bobbing while the player
+                // finds the shown key on screen.
+                birdY = H * 0.5f + sin(menuT * 2.2f) * 12f
+                birdRot = 0f
+            }
             else -> Unit
         }
     }
@@ -246,6 +256,7 @@ class GamePanel(private val project: Project? = null) : JPanel() {
                 p.passed = true
                 score++
                 scorePop = 1f
+                pickNextKey() // a new key appears after every passed pipe
             }
             if (p.x + PIPE_W < -12) iterator.remove()
         }
@@ -299,6 +310,7 @@ class GamePanel(private val project: Project? = null) : JPanel() {
         when (state) {
             GameState.MENU -> startGame()
             GameState.PLAYING -> Unit // in-game flaps happen only via the shown key
+            GameState.READY -> Unit   // waiting for the shown key
             GameState.PAUSED -> state = GameState.PLAYING
             GameState.GAME_OVER -> if (gameOverT > 0.35f) startGame()
             GameState.LEADERBOARD -> state = GameState.MENU
@@ -316,18 +328,24 @@ class GamePanel(private val project: Project? = null) : JPanel() {
      * a small downward penalty (so brute-forcing every key is a bad strategy).
      */
     private fun onCharTyped(c: Char) {
-        if (state != GameState.PLAYING) return
+        if (state != GameState.PLAYING && state != GameState.READY) return
         if (c.lowercaseChar() == requiredChar.lowercaseChar()) {
             keysOk++
             flap()
             keyFlashOk = true
             keyFlashT = 1f
-            pickNextKey()
+            if (state == GameState.READY) {
+                // First correct press starts the run.
+                state = GameState.PLAYING
+            }
         } else {
             keysWrong++
             keyFlashOk = false
             keyFlashT = 1f
-            birdVy = (birdVy + WRONG_VY_PENALTY).coerceAtMost(WRONG_VY_CAP)
+            if (state == GameState.PLAYING) {
+                // Light anti-spam: wrong keypresses push the bird down a bit.
+                birdVy = (birdVy + WRONG_VY_PENALTY).coerceAtMost(WRONG_VY_CAP)
+            }
         }
     }
 
@@ -346,8 +364,8 @@ class GamePanel(private val project: Project? = null) : JPanel() {
 
     private fun startGame() {
         pipes.clear()
-        birdY = H * 0.42f
-        birdVy = -140f
+        birdY = H * 0.5f
+        birdVy = 0f
         birdRot = 0f
         score = 0
         speed = BASE_SPEED
@@ -356,8 +374,9 @@ class GamePanel(private val project: Project? = null) : JPanel() {
         keysOk = 0
         keysWrong = 0
         keyFlashT = 0f
-        pickNextKey()
-        state = GameState.PLAYING
+        // The key was already picked (shown on menu / game-over screen);
+        // the run itself starts on the first correct press (READY -> PLAYING).
+        state = GameState.READY
         requestFocusInWindow()
     }
 
@@ -372,6 +391,7 @@ class GamePanel(private val project: Project? = null) : JPanel() {
             best = score
             PropertiesComponent.getInstance().setValue(BEST_KEY, best.toString())
         }
+        pickNextKey() // pre-pick the next run's key so the game-over screen can show it
         submitScore()
     }
 

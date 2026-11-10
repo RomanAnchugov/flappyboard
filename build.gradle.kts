@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "dev.flappyboards"
-version = "0.2.0"
+version = "0.2.1"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -43,9 +43,9 @@ intellijPlatform {
         }
         description = """
             Flappy Bird x Monkeytype inside your IDE. Take a break between commits and flap
-            through pipes — but each flap requires typing the key shown on screen, and it changes
-            every time. Letters first, then digits, then programming symbols. Compete with other
-            developers on the global leaderboard.
+            through pipes — each flap requires typing the key shown on screen, and a new key
+            appears after every pipe you pass. Letters first, then digits, then programming
+            symbols. Compete with other developers on the global leaderboard.
 
             Press Ctrl+Alt+F to open the game. L — leaderboard, O — settings, ESC — menu.
         """.trimIndent()

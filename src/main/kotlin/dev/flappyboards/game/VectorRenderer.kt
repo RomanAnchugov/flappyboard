@@ -50,6 +50,17 @@ class VectorRenderer : GameRenderer {
 
         when (s.state) {
             GameState.MENU -> drawMenu(g2, s)
+            GameState.READY -> {
+                drawScore(g2, s)
+                drawKeyPrompt(g2, s)
+                val alpha = (0.55f + 0.45f * sin(s.menuT * 3.2f).toFloat()).coerceIn(0f, 1f)
+                val oldComposite = g2.composite
+                g2.composite = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha)
+                g2.font = mono(15f)
+                g2.color = C.TEXT
+                drawCentered(g2, "type the shown key to start", s.worldW / 2f, 190f)
+                g2.composite = oldComposite
+            }
             GameState.PLAYING -> {
                 drawScore(g2, s)
                 drawKeyPrompt(g2, s)
@@ -207,9 +218,12 @@ class VectorRenderer : GameRenderer {
         g2.color = C.TEXT_DIM
         drawCentered(g2, "then type the shown key to flap", s.worldW / 2f, 368f)
         drawCentered(g2, "L  leaderboard      O  settings", s.worldW / 2f, 396f)
+        g2.color = C.ACCENT
+        drawCentered(g2, "first key:  [ ${s.requiredChar} ]", s.worldW / 2f, 426f)
 
         if (s.nicknameBlank) {
-            drawCentered(g2, "set your nickname in settings to compete", s.worldW / 2f, 430f)
+            g2.color = C.TEXT_DIM
+            drawCentered(g2, "set your nickname in settings to compete", s.worldW / 2f, 452f)
         }
     }
 
@@ -261,11 +275,13 @@ class VectorRenderer : GameRenderer {
         g2.font = mono(13f)
         g2.color = C.TEXT_DIM
         drawCentered(g2, "SPACE  retry      L  leaderboard", s.worldW / 2f, cy + cardH + 28f)
-        drawCentered(g2, "O  settings      ESC  menu", s.worldW / 2f, cy + cardH + 50f)
+        drawCentered(g2, "O  settings      ESC  menu", s.worldW / 2f, cy + cardH + 48f)
+        g2.color = C.ACCENT
+        drawCentered(g2, "next key:  [ ${s.requiredChar} ]", s.worldW / 2f, cy + cardH + 72f)
 
         if (LeaderboardService.isConfigured && s.publishScores && s.nicknameBlank) {
-            g2.color = C.ACCENT
-            drawCentered(g2, "add a nickname (O) to enter the leaderboard", s.worldW / 2f, cy + cardH + 80f)
+            g2.color = C.TEXT_DIM
+            drawCentered(g2, "add a nickname (O) to enter the leaderboard", s.worldW / 2f, cy + cardH + 94f)
         }
     }
 
