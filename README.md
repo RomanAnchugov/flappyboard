@@ -55,10 +55,10 @@
 ## Запуск для разработки
 
 ```bash
-./gradlew runIde
+./gradlew runIde        # песочница с плагином (первый запуск скачает IDEA ~1 ГБ)
+./gradlew buildPlugin   # zip в build/distributions/
+./gradlew verifyPlugin  # проверка совместимости
 ```
-
-Скачает IntelliJ IDEA Community 2024.2 (~1 ГБ, один раз) и запустит песочницу с плагином.
 
 ## Лидерборд
 
@@ -71,20 +71,9 @@
 `supabase/schema.sql` в SQL Editor и укажи URL + publishable-ключ в `LeaderboardService.kt`
 (подробности — в комментариях схемы и кода).
 
-## Сборка и публикация
+## Лицензия
 
-```bash
-./gradlew buildPlugin        # zip в build/distributions/
-./gradlew verifyPlugin       # проверка совместимости
-```
-
-Публикация на [JetBrains Marketplace](https://plugins.jetbrains.com):
-
-1. Заведи аккаунт и создай плагин `FlappyBoards` (Vendor → upload token)
-2. `./gradlew publishPlugin -PintellijPublishToken=...` (token в `gradle.properties` или env)
-3. Модерация занимает обычно 1–3 дня
-
-Иконка плагина — `src/main/resources/icons/pluginIcon.svg` (80×80), иконка тулwindow — `flappyboards.svg` (16×16).
+[MIT](LICENSE)
 
 ## Структура проекта
 
