@@ -286,9 +286,20 @@ class VectorRenderer : GameRenderer {
     }
 
     private fun drawLeaderboard(g2: Graphics2D, s: GameSnapshot) {
-        g2.font = mono(24f)
-        g2.color = C.TEXT
-        drawCentered(g2, "LEADERBOARD", s.worldW / 2f, 64f)
+        // tabs: ALL-TIME / WEEK
+        val allActive = s.lbScope == LeaderboardService.Scope.ALL_TIME
+        val active = if (allActive) "ALL-TIME" else "WEEK"
+        val other = if (allActive) "WEEK" else "ALL-TIME"
+        g2.font = mono(20f)
+        val fm20 = g2.fontMetrics
+        val combinedW = fm20.stringWidth(active) + fm20.stringWidth("   ") + fm20.stringWidth(other)
+        val x0 = s.worldW / 2f - combinedW / 2f
+        g2.color = C.ACCENT
+        g2.drawString(active, x0, 62f)
+        g2.color = C.TEXT_DIM
+        g2.drawString(other, x0 + fm20.stringWidth(active) + fm20.stringWidth("   "), 62f)
+        g2.font = mono(11f)
+        drawCentered(g2, "←/→ switch", s.worldW / 2f, 82f)
 
         when {
             s.lbLoading -> {
@@ -297,14 +308,26 @@ class VectorRenderer : GameRenderer {
                 drawCentered(g2, "loading...", s.worldW / 2f, 150f)
             }
             s.lbRows.isNotEmpty() -> {
-                g2.font = mono(15f)
-                var y = 112f
+                g2.font = mono(13f)
+                val ownInTop = s.lbRows.any { it.nickname.equals(s.myNick, ignoreCase = true) }
+                var y = 118f
                 for ((i, e) in s.lbRows.withIndex()) {
-                    g2.color = if (i < 3) C.ACCENT else C.TEXT
-                    g2.drawString("${(i + 1).toString().padStart(2, ' ')}. ${e.nickname.take(18)}", 34f, y)
-                    val sw = g2.fontMetrics.stringWidth(e.score.toString())
-                    g2.drawString(e.score.toString(), s.worldW - 34f - sw, y)
-                    y += 23f
+                    val own = e.nickname.equals(s.myNick, ignoreCase = true)
+                    g2.color = when {
+                        own -> C.OK
+                        i < 3 -> C.ACCENT
+                        else -> C.TEXT
+                    }
+                    val line = String.format(
+                        "%2d. %-14s %6d %4d%% %4s",
+                        i + 1, e.nickname.take(14), e.score, e.accuracy, e.ageLabel()
+                    )
+                    g2.drawString(line, 24f, y)
+                    y += 21f
+                }
+                if (!ownInTop && s.lbMyPlace != null) {
+                    g2.color = C.ACCENT
+                    drawCentered(g2, "... your place: #${s.lbMyPlace}", s.worldW / 2f, y + 14f)
                 }
             }
             else -> {
@@ -314,18 +337,17 @@ class VectorRenderer : GameRenderer {
                     g2.color = C.DANGER
                     drawCentered(g2, s.lbError!!.take(42), s.worldW / 2f, 150f)
                 }
-                g2.font = mono(15f)
+                g2.font = mono(13f)
                 if (local.isEmpty()) {
                     g2.color = C.TEXT_DIM
                     drawCentered(g2, if (s.lbError != null) "local best: ${s.best}" else "no scores yet — go play!", s.worldW / 2f, 190f)
                 } else {
                     var y = if (s.lbError != null) 195f else 130f
                     for ((i, e) in local.withIndex()) {
-                        g2.color = C.TEXT
-                        g2.drawString("${i + 1}. ${e.nickname.take(18)}", 34f, y)
-                        val sw = g2.fontMetrics.stringWidth(e.score.toString())
-                        g2.drawString(e.score.toString(), s.worldW - 34f - sw, y)
-                        y += 23f
+                        g2.color = if (e.nickname.equals(s.myNick, ignoreCase = true)) C.OK else C.TEXT
+                        val line = String.format("%2d. %-14s %6d %4d%%", i + 1, e.nickname.take(14), e.score, e.accuracy)
+                        g2.drawString(line, 24f, y)
+                        y += 21f
                     }
                 }
             }

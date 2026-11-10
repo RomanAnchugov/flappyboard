@@ -19,9 +19,11 @@ import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import java.util.UUID
 import javax.swing.JPanel
 import javax.swing.Timer
 import kotlin.math.PI
+import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.random.Random
 
@@ -72,6 +74,9 @@ class GamePanel(private val project: Project? = null) : JPanel() {
         // Light anti-spam: each wrong keypress pushes the bird down a bit.
         const val WRONG_VY_PENALTY = 60f
         const val WRONG_VY_CAP = 420f
+
+        const val DEVICE_KEY = "dev.flappyboards.deviceId"
+        const val LB_REFRESH_SECONDS = 10f
     }
 
     private class Pipe(var x: Float, val gapY: Float, val gapH: Float, var passed: Boolean = false)
@@ -110,6 +115,20 @@ class GamePanel(private val project: Project? = null) : JPanel() {
     private var lbRows: List<LeaderboardService.Entry> = emptyList()
     private var lbLoading = false
     private var lbError: String? = null
+    private var lbScope = LeaderboardService.Scope.ALL_TIME
+    private var lbMyPlace: Int? = null
+    private var lastLbFetchAt = -100f
+
+    /** Stable per-install UUID — the basis of nickname ownership on the server. */
+    private val deviceId: String by lazy {
+        val props = PropertiesComponent.getInstance()
+        var id = props.getValue(DEVICE_KEY)
+        if (id.isNullOrBlank()) {
+            id = UUID.randomUUID().toString()
+            props.setValue(DEVICE_KEY, id)
+        }
+        id
+    }
 
     private val clouds = MutableList(6) {
         CloudData(
@@ -158,6 +177,19 @@ class GamePanel(private val project: Project? = null) : JPanel() {
                                 GameState.LEADERBOARD, GameState.READY -> state = GameState.MENU
                                 GameState.PAUSED -> state = GameState.MENU // abandon the run
                                 else -> Unit
+                            }
+                        }
+                        KeyEvent.VK_LEFT, KeyEvent.VK_RIGHT -> {
+                            if (state == GameState.LEADERBOARD) {
+                                val newScope = if (e.keyCode == KeyEvent.VK_LEFT) {
+                                    LeaderboardService.Scope.ALL_TIME
+                                } else {
+                                    LeaderboardService.Scope.WEEK
+                                }
+                                if (newScope != lbScope) {
+                                    lbScope = newScope
+                                    openLeaderboard()
+                                }
                             }
                         }
                     }
@@ -232,6 +264,10 @@ class GamePanel(private val project: Project? = null) : JPanel() {
             GameState.GAME_OVER -> {
                 gameOverT += dt
                 physics(dt, dying = true)
+            }
+            GameState.LEADERBOARD -> {
+                // live-ish: quietly re-fetch while the screen is open
+                if (menuT - lastLbFetchAt > LB_REFRESH_SECONDS) fetchLeaderboard(silent = true)
             }
             GameState.READY -> {
                 // Bird hovers: no gravity, gentle bobbing while the player
@@ -423,13 +459,16 @@ class GamePanel(private val project: Project? = null) : JPanel() {
         if (submitted || score <= 0) return
         submitted = true
 
-        LocalScores.add(localNick(), score)
+        val totalKeys = keysOk + keysWrong
+        val accuracy = if (totalKeys > 0) (keysOk * 100f / totalKeys).roundToInt() else 100
+
+        LocalScores.add(localNick(), score, accuracy)
 
         val st = FlappyBoardsSettings.instance.state
         if (!LeaderboardService.isConfigured || !st.publishScores) return
         val nick = st.nickname.trim()
         if (nick.isEmpty()) return
-        LeaderboardService.submitScore(nick, score) { }
+        LeaderboardService.submitScore(nick, score, accuracy, deviceId) { }
     }
 
     private fun localNick(): String =
@@ -439,16 +478,39 @@ class GamePanel(private val project: Project? = null) : JPanel() {
         state = GameState.LEADERBOARD
         lbRows = emptyList()
         lbError = null
-        if (LeaderboardService.isConfigured) {
-            lbLoading = true
-            LeaderboardService.fetchTop(TOP_SCORE_LIMIT) { result ->
-                lbLoading = false
-                result.onSuccess { lbRows = it }
-                    .onFailure { lbError = it.message ?: "network error" }
+        lbMyPlace = null
+        fetchLeaderboard(silent = false)
+    }
+
+    private fun fetchLeaderboard(silent: Boolean) {
+        lastLbFetchAt = menuT
+        if (!LeaderboardService.isConfigured) {
+            lbRows = LocalScores.top(TOP_SCORE_LIMIT)
+            lbMyPlace = null
+            return
+        }
+        if (!silent) lbLoading = true
+        LeaderboardService.fetchTop(lbScope, TOP_SCORE_LIMIT) { result ->
+            lbLoading = false
+            result.onSuccess { rows ->
+                lbRows = rows
+                maybeFetchMyPlace(rows)
+            }.onFailure { lbError = it.message ?: "network error" }
+            repaint()
+        }
+    }
+
+    /** If our nickname is not among the fetched rows, ask the server for our rank. */
+    private fun maybeFetchMyPlace(rows: List<LeaderboardService.Entry>) {
+        lbMyPlace = null
+        val nick = FlappyBoardsSettings.instance.state.nickname.trim()
+        if (nick.isEmpty()) return
+        if (rows.any { it.nickname.equals(nick, ignoreCase = true) }) return
+        LeaderboardService.fetchMyPlace(nick, lbScope) { r ->
+            r.onSuccess { place ->
+                lbMyPlace = place
                 repaint()
             }
-        } else {
-            lbRows = LocalScores.top(TOP_SCORE_LIMIT)
         }
     }
 
@@ -502,6 +564,9 @@ class GamePanel(private val project: Project? = null) : JPanel() {
             lbRows = lbRows,
             lbLoading = lbLoading,
             lbError = lbError,
+            lbScope = lbScope,
+            lbMyPlace = lbMyPlace,
+            myNick = st.nickname.trim(),
             nicknameBlank = st.nickname.isBlank(),
             publishScores = st.publishScores,
         )

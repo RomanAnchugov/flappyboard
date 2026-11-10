@@ -1,45 +1,90 @@
--- FlappyBrains leaderboard schema for Supabase.
--- Run this in the Supabase dashboard: SQL Editor → New query → paste → Run.
+-- FlappyBoards leaderboard schema v2 for Supabase.
+-- Run in the Supabase dashboard: SQL Editor → New query → paste → Run.
+-- Idempotent: safe to re-run, recreates everything.
 
-create table if not exists public.scores (
-    id         bigint generated always as identity primary key,
-    nickname   text        not null check (char_length(nickname) between 1 and 24),
-    score      int         not null check (score between 0 and 100000),
+drop view  if exists public.leaderboard cascade;
+drop view  if exists public.leaderboard_week cascade;
+drop function if exists public.submit_score(text, int) cascade;
+drop function if exists public.submit_score(text, int, int, uuid) cascade;
+drop function if exists public.my_place(text) cascade;
+drop function if exists public.my_place(text, boolean) cascade;
+drop table if exists public.scores cascade;
+drop table if exists public.players cascade;
+
+-- Nicknames are claimed by devices: a nickname belongs to the first
+-- device_id that used it, so nobody can hijack someone else's handle.
+create table public.players (
+    device_id  uuid primary key,
+    nickname   text        not null unique check (char_length(nickname) between 1 and 24),
     created_at timestamptz not null default now()
 );
 
+create table public.scores (
+    id         bigint generated always as identity primary key,
+    device_id  uuid        not null,
+    nickname   text        not null check (char_length(nickname) between 1 and 24),
+    score      int         not null check (score between 0 and 100000),
+    accuracy   int         not null default 0 check (accuracy between 0 and 100),
+    created_at timestamptz not null default now()
+);
+
+create index if not exists scores_created_idx on public.scores (created_at desc);
 create index if not exists scores_nick_created_idx on public.scores (nickname, created_at desc);
 
--- Anyone may read scores and submit new ones, but never edit or delete.
-alter table public.scores enable row level security;
+alter table public.players enable row level security;
+alter table public.scores  enable row level security;
 
-drop policy if exists "scores are public" on public.scores;
-create policy "scores are public" on public.scores for select using (true);
+-- Everyone may read; writes happen only through the security-definer RPCs.
+-- No update/delete policies = anon can never modify or wipe the tables.
+create policy "players are public" on public.players for select using (true);
+create policy "scores are public"  on public.scores  for select using (true);
 
-drop policy if exists "anyone can submit" on public.scores;
-create policy "anyone can submit" on public.scores for insert with check (true);
-
--- Best score per nickname: the plugin reads this view as the leaderboard.
+-- All-time best run per nickname (score + that run's accuracy + date).
 create or replace view public.leaderboard as
-select nickname,
-       max(score)     as best_score,
-       max(created_at) as last_played
-from public.scores
-group by nickname;
+select nickname, best_score, accuracy, last_played
+from (
+    select distinct on (nickname)
+        nickname,
+        score       as best_score,
+        accuracy,
+        created_at  as last_played
+    from public.scores
+    order by nickname, score desc, created_at desc
+) best
+order by best_score desc;
 
-grant select on public.leaderboard to anon, authenticated;
+-- Same, but only runs from the last 7 days (weekly season).
+create or replace view public.leaderboard_week as
+select nickname, best_score, accuracy, last_played
+from (
+    select distinct on (nickname)
+        nickname,
+        score       as best_score,
+        accuracy,
+        created_at  as last_played
+    from public.scores
+    where created_at > now() - interval '7 days'
+    order by nickname, score desc, created_at desc
+) best
+order by best_score desc;
 
--- The plugin submits scores through this RPC so we can apply basic
--- server-side sanity checks. It is "anti-idiot", not "anti-cheater":
--- the anon key is public anyway.
-create or replace function public.submit_score(p_nickname text, p_score int)
+-- The only write path. Validates input, rate-limits per device and
+-- enforces nickname ownership. It is "anti-idiot", not "anti-cheater":
+-- the publishable key is public anyway.
+create or replace function public.submit_score(
+    p_nickname text,
+    p_score    int,
+    p_accuracy int,
+    p_device_id uuid
+)
 returns void
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
-    recent int;
+    recent   int;
+    owner_id uuid;
 begin
     if p_nickname is null or char_length(trim(p_nickname)) not between 1 and 24 then
         raise exception 'invalid nickname';
@@ -47,18 +92,74 @@ begin
     if p_score is null or p_score not between 1 and 100000 then
         raise exception 'invalid score';
     end if;
+    if p_accuracy is null or p_accuracy not between 0 and 100 then
+        p_accuracy := 0;
+    end if;
+    if p_device_id is null then
+        raise exception 'invalid device';
+    end if;
+    p_nickname := trim(p_nickname);
 
-    -- Max 10 submissions per minute per nickname (spam guard).
+    -- spam guard: max 10 submissions per minute per device
     select count(*) into recent
     from scores
-    where nickname = trim(p_nickname)
+    where device_id = p_device_id
       and created_at > now() - interval '1 minute';
     if recent >= 10 then
         raise exception 'too many submissions, slow down';
     end if;
 
-    insert into scores (nickname, score) values (trim(p_nickname), p_score);
+    -- nickname ownership: belongs to the first device that claimed it
+    select device_id into owner_id from players where nickname = p_nickname;
+    if owner_id is not null and owner_id <> p_device_id then
+        raise exception 'nickname already taken';
+    end if;
+
+    insert into players (device_id, nickname)
+    values (p_device_id, p_nickname)
+    on conflict (device_id) do update set nickname = excluded.nickname;
+
+    insert into scores (device_id, nickname, score, accuracy)
+    values (p_device_id, p_nickname, p_score, p_accuracy);
 end;
 $$;
+grant execute on function public.submit_score(text, int, int, uuid) to anon, authenticated;
 
-grant execute on function public.submit_score(text, int) to anon, authenticated;
+-- Rank of a player, even outside the top-20 (null if the player has no runs).
+create or replace function public.my_place(p_nickname text, p_weekly boolean default false)
+returns int
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+    place int;
+begin
+    if p_weekly then
+        select r.place into place
+        from (
+            select row_number() over (order by best_score desc) as place, nickname
+            from (
+                select nickname, max(score) as best_score
+                from scores
+                where created_at > now() - interval '7 days'
+                group by nickname
+            ) b
+        ) r
+        where r.nickname = trim(p_nickname);
+    else
+        select r.place into place
+        from (
+            select row_number() over (order by best_score desc) as place, nickname
+            from (
+                select nickname, max(score) as best_score
+                from scores
+                group by nickname
+            ) b
+        ) r
+        where r.nickname = trim(p_nickname);
+    end if;
+    return place;
+end;
+$$;
+grant execute on function public.my_place(text, boolean) to anon, authenticated;

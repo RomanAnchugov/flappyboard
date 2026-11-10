@@ -308,18 +308,38 @@ class AsciiRenderer : GameRenderer {
     }
 
     private fun drawLeaderboard(s: GameSnapshot) {
-        putCentered(3, "TOP-20", ACCENT)
+        // tabs: ALL-TIME / WEEK (switch with ←/→)
+        val allActive = s.lbScope == LeaderboardService.Scope.ALL_TIME
+        val left = if (allActive) "[ALL-TIME]" else " ALL-TIME "
+        val right = if (allActive) " WEEK " else "[WEEK]"
+        val tabs = "$left   $right"
+        val tx = cols / 2 - tabs.length / 2
+        putString(tx, 3, left, if (allActive) ACCENT else DIM)
+        putString(tx + left.length + 3, 3, right, if (!allActive) ACCENT else DIM)
+        putCentered(4, "←/→ switch", DIM)
+
         when {
-            s.lbLoading -> putCentered(6, "loading...", DIM)
+            s.lbLoading -> putCentered(7, "loading...", DIM)
             s.lbRows.isNotEmpty() -> {
+                val ownInTop = s.lbRows.any { it.nickname.equals(s.myNick, ignoreCase = true) }
                 for ((i, e) in s.lbRows.withIndex()) {
-                    val line = "${(i + 1).toString().padStart(2)}. " +
-                        e.nickname.take(16).padEnd(16) + " " + e.score.toString().padStart(5)
-                    putString(GUTTER_W + 1, 5 + i, line, if (i < 3) ACCENT else TEXT)
+                    val own = e.nickname.equals(s.myNick, ignoreCase = true)
+                    val color = when {
+                        own -> OK
+                        i < 3 -> ACCENT
+                        else -> TEXT
+                    }
+                    val line = "%2d. %-13s %6d %3d%% %3s".format(
+                        i + 1, e.nickname.take(13), e.score, e.accuracy, e.ageLabel()
+                    )
+                    putString(GUTTER_W + 1, 6 + i, line, color)
+                }
+                if (!ownInTop && s.lbMyPlace != null) {
+                    putCentered(rows - 6, "... your place: #${s.lbMyPlace}", ACCENT)
                 }
             }
             else -> {
-                var y = 6
+                var y = 7
                 if (s.lbError != null) {
                     putCentered(y, s.lbError!!.take((cols - GUTTER_W - 2).coerceAtLeast(8)), DANGER)
                     y += 2
@@ -329,8 +349,9 @@ class AsciiRenderer : GameRenderer {
                     putCentered(y + 1, if (s.lbError != null) "local best ${s.best}" else "no scores yet — go play!", DIM)
                 } else {
                     for ((i, e) in local.withIndex()) {
-                        val line = "${i + 1}. " + e.nickname.take(16).padEnd(16) + " " + e.score.toString().padStart(5)
-                        putString(GUTTER_W + 1, y + 1 + i, line, TEXT)
+                        val color = if (e.nickname.equals(s.myNick, ignoreCase = true)) OK else TEXT
+                        val line = "%2d. %-13s %6d %3d%%".format(i + 1, e.nickname.take(13), e.score, e.accuracy)
+                        putString(GUTTER_W + 1, y + 1 + i, line, color)
                     }
                 }
             }

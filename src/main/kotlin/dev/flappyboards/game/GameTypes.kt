@@ -45,7 +45,10 @@ class GameSnapshot(
     val lbRows: List<LeaderboardService.Entry>,
     val lbLoading: Boolean,
     val lbError: String?,
+    val lbScope: LeaderboardService.Scope,
+    val lbMyPlace: Int?,
     // settings used by screens
+    val myNick: String,
     val nicknameBlank: Boolean,
     val publishScores: Boolean,
 )
