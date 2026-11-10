@@ -13,6 +13,18 @@
 - На экране Game Over — точность нажатий (accuracy), как в Monkeytype
 - Раскладка учитывается: печатать надо на латинице (RU-раскладка не считается — переключайся, это же тренажёр)
 
+## Графика
+
+Переключение в **Settings → Tools → FlappyBoards → Graphics** (работает на лету):
+
+- **Terminal (ASCII)** — дефолт. Вся игра нарисована символами шрифтом редактора: шапка
+  `flappyboards — zsh`, гуттер с номерами строк (номер строки птицы подсвечивается),
+  приглушённо-зелёные трубы `█`, янтарная птица `>`. Издалека — просто ещё одна
+  терминальная панель в IDE 🙂
+- **Boss screen**: пока фокус в редакторе (авто-пауза), вместо игры рисуется живой
+  фейковый Gradle-лог с ползущим прогресс-баром — на экране только «сборка»
+- **Classic** — прежний векторный минимализм
+
 ## Управление
 
 | Клавиша | Действие |
@@ -77,12 +89,16 @@ const val SUPABASE_ANON_KEY = "<anon public key>"
 src/main/kotlin/dev/flappyboards/
 ├── FlappyBoardsToolWindowFactory.kt   # регистрация ToolWindow
 ├── OpenFlappyBoardsAction.kt          # пункт меню Tools + хоткей
-├── game/GamePanel.kt                  # игра: физика, рендер, ввод, механика печати
+├── game/
+│   ├── GamePanel.kt                   # состояние, физика, ввод, механика печати
+│   ├── GameTypes.kt                   # GameState, GameSnapshot, интерфейс GameRenderer
+│   ├── AsciiRenderer.kt               # терминальный рендер + boss screen
+│   └── VectorRenderer.kt              # классический векторный рендер
 ├── leaderboard/
 │   ├── LeaderboardService.kt          # REST-клиент Supabase (JDK HttpClient)
 │   └── LocalScores.kt                 # локальный топ-офлайн
 └── settings/
-    ├── FlappyBoardsSettings.kt        # persistent state (ник, флаг публикации)
+    ├── FlappyBoardsSettings.kt        # persistent state (ник, публикация, режим графики)
     └── FlappyBoardsConfigurable.kt    # страница в Settings
 supabase/schema.sql                    # схема БД: таблица + view + RPC + RLS
 ```
