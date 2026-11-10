@@ -143,6 +143,7 @@ class GamePanel(private val project: Project? = null) : JPanel() {
                         KeyEvent.VK_ESCAPE -> {
                             when (state) {
                                 GameState.LEADERBOARD, GameState.PAUSED, GameState.READY -> state = GameState.MENU
+                                else -> Unit
                             }
                         }
                     }
