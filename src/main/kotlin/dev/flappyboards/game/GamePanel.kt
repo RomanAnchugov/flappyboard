@@ -8,10 +8,12 @@ import dev.flappyboards.leaderboard.LeaderboardService
 import dev.flappyboards.leaderboard.LocalScores
 import dev.flappyboards.settings.FlappyBoardsConfigurable
 import dev.flappyboards.settings.FlappyBoardsSettings
+import java.awt.Component
 import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.Graphics
 import java.awt.Graphics2D
+import java.awt.KeyboardFocusManager
 import java.awt.RenderingHints
 import java.awt.event.FocusAdapter
 import java.awt.event.FocusEvent
@@ -19,8 +21,10 @@ import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import java.beans.PropertyChangeListener
 import java.util.UUID
 import javax.swing.JPanel
+import javax.swing.SwingUtilities
 import javax.swing.Timer
 import kotlin.math.PI
 import kotlin.math.roundToInt
@@ -101,6 +105,9 @@ class GamePanel(private val project: Project? = null) : JPanel() {
     private var gameOverT = 0f
     private var newBest = false
 
+    /** State to return to when the paused (boss screen) game regains focus. */
+    private var pausedFrom: GameState? = null
+
     // --- run bookkeeping ---
     private var submitted = false
 
@@ -143,6 +150,13 @@ class GamePanel(private val project: Project? = null) : JPanel() {
 
     private val vectorRenderer = VectorRenderer()
     private val asciiRenderer = AsciiRenderer()
+
+    private val focusTracker = PropertyChangeListener { evt ->
+        val owner = evt.newValue as? Component
+        if (owner == null || !SwingUtilities.isDescendingFrom(owner, this)) {
+            pauseForStealth()
+        }
+    }
 
     init {
         isOpaque = true
@@ -210,18 +224,40 @@ class GamePanel(private val project: Project? = null) : JPanel() {
             }
         )
 
-        // Auto-pause when the user goes back to writing code.
+        // Auto-pause (boss screen) whenever focus leaves the game panel —
+        // whether the user clicks another part of the IDE or another app.
+        // Component FocusListener alone misses some in-IDE focus transfers,
+        // so also watch the global KeyboardFocusManager.
         addFocusListener(
             object : FocusAdapter() {
                 override fun focusGained(e: FocusEvent) {
-                    if (state == GameState.PAUSED) state = GameState.PLAYING
+                    resumeFromPause()
                 }
 
                 override fun focusLost(e: FocusEvent) {
-                    if (state == GameState.PLAYING) state = GameState.PAUSED
+                    pauseForStealth()
                 }
             }
         )
+        KeyboardFocusManager.getCurrentKeyboardFocusManager()
+            .addPropertyChangeListener("permanentFocusOwner", focusTracker)
+    }
+
+    private fun pauseForStealth() {
+        when (state) {
+            GameState.PLAYING, GameState.READY -> {
+                pausedFrom = state
+                state = GameState.PAUSED
+            }
+            else -> Unit
+        }
+    }
+
+    private fun resumeFromPause() {
+        if (state == GameState.PAUSED) {
+            state = pausedFrom ?: GameState.PLAYING
+            pausedFrom = null
+        }
     }
 
     // ------------------------------------------------------------------ loop
@@ -233,6 +269,7 @@ class GamePanel(private val project: Project? = null) : JPanel() {
 
     override fun removeNotify() {
         timer.stop()
+        KeyboardFocusManager.getCurrentKeyboardFocusManager().removePropertyChangeListener(focusTracker)
         super.removeNotify()
     }
 
@@ -367,7 +404,7 @@ class GamePanel(private val project: Project? = null) : JPanel() {
             GameState.MENU -> startGame()
             GameState.PLAYING -> Unit // in-game flaps happen only via the shown key
             GameState.READY -> Unit   // waiting for the shown key
-            GameState.PAUSED -> state = GameState.PLAYING
+            GameState.PAUSED -> resumeFromPause()
             GameState.GAME_OVER -> if (gameOverT > 0.35f) startGame()
             GameState.LEADERBOARD -> state = GameState.MENU
         }
